@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 270 100% 98.2%;
+    --foreground: 340 100% 25%;
+    --card: 270 100% 98.2%;
+    --card-foreground: 340 100% 25%;
+    --popover: 270 100% 98.2%;
+    --popover-foreground: 340 100% 25%;
+    --primary: 340 100% 25%;
+    --primary-foreground: 270 100% 98.2%;
+    --secondary: 270 100% 98.2%;
+    --secondary-foreground: 340 100% 25%;
+    --muted: 270 100% 96%;
+    --muted-foreground: 340 50% 50%;
+    --accent: 340 100% 25%;
+    --accent-foreground: 270 100% 98.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 340 50% 85%;
+    --input: 270 100% 96%;
+    --ring: 340 100% 25%;
+    --radius: 0.625rem;
+    --sidebar-background: 270 100% 98.2%;
+    --sidebar-foreground: 340 100% 25%;
+    --sidebar-primary: 340 100% 25%;
+    --sidebar-primary-foreground: 270 100% 98.2%;
+    --sidebar-accent: 340 100% 35%;
+    --sidebar-accent-foreground: 270 100% 98.2%;
+    --sidebar-border: 340 50% 85%;
+    --sidebar-ring: 340 100% 25%;
+  }
+
+  .dark {
+    --background: 340 100% 15%;
+    --foreground: 270 100% 98.2%;
+    --card: 340 100% 15%;
+    --card-foreground: 270 100% 98.2%;
+    --popover: 340 100% 15%;
+    --popover-foreground: 270 100% 98.2%;
+    --primary: 340 100% 50%;
+    --primary-foreground: 340 100% 15%;
+    --secondary: 340 100% 25%;
+    --secondary-foreground: 270 100% 98.2%;
+    --muted: 340 100% 25%;
+    --muted-foreground: 340 50% 70%;
+    --accent: 340 100% 35%;
+    --accent-foreground: 270 100% 98.2%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 340 100% 25%;
+    --input: 340 100% 25%;
+    --ring: 340 100% 50%;
+    --sidebar-background: 340 100% 20%;
+    --sidebar-foreground: 270 100% 98.2%;
+    --sidebar-primary: 340 100% 50%;
+    --sidebar-primary-foreground: 340 100% 15%;
+    --sidebar-accent: 340 100% 35%;
+    --sidebar-accent-foreground: 270 100% 98.2%;
+    --sidebar-border: 340 100% 25%;
+    --sidebar-ring: 340 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Utility classes for custom color scheme */
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-lg font-medium transition-colors;
+  }
+  
+  .btn-primary-dark {
+    @apply bg-primary hover:bg-primary/80 text-primary-foreground;
+  }
+  
+  .text-primary-heading {
+    @apply text-primary font-bold;
+  }
+  
+  .bg-primary-subtle {
+    @apply bg-secondary text-primary;
+  }
+}
+
+@keyframes loader {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.loader-bar {
+  animation-name: loader;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
