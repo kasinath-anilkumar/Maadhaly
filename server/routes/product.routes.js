@@ -70,6 +70,23 @@ const buildImageUrl = (imagePath, req) => {
   return `${protocol}://${host}${imagePath}`;
 };
 
+// Normalize image payloads from mixed legacy formats (string/object/null)
+const normalizeProductImages = (images, req) => {
+  if (!Array.isArray(images)) return [];
+
+  return images
+    .map((img) => {
+      if (typeof img === 'string') return img;
+      if (img && typeof img === 'object') {
+        if (typeof img.url === 'string') return img.url;
+        if (typeof img.secure_url === 'string') return img.secure_url;
+      }
+      return null;
+    })
+    .filter((url) => typeof url === 'string' && url.length > 0)
+    .map((url) => buildImageUrl(url, req));
+};
+
 // @route   GET /api/products
 // @desc    Get all products with filters
 // @access  Public
@@ -127,11 +144,7 @@ router.get('/', async (req, res) => {
     // Normalize images to URLs for API responses
     const productsPlain = products.map((p) => {
       const obj = p.toObject ? p.toObject() : p;
-      obj.images = Array.isArray(obj.images) ? obj.images.map((img) => {
-        const imageUrl = (img && img.url) ? img.url : img;
-        // Build full URL for local files
-        return imageUrl.startsWith('http') ? imageUrl : buildImageUrl(imageUrl, req);
-      }) : [];
+      obj.images = normalizeProductImages(obj.images, req);
       return obj;
     });
 
@@ -161,11 +174,7 @@ router.get('/featured', async (req, res) => {
     // Normalize images to URLs for API responses
     const productsPlain = products.map((p) => {
       const obj = p.toObject ? p.toObject() : p;
-      obj.images = Array.isArray(obj.images) ? obj.images.map((img) => {
-        const imageUrl = (img && img.url) ? img.url : img;
-        // Build full URL for local files
-        return imageUrl.startsWith('http') ? imageUrl : buildImageUrl(imageUrl, req);
-      }) : [];
+      obj.images = normalizeProductImages(obj.images, req);
       return obj;
     });
     res.json(productsPlain);
@@ -190,11 +199,7 @@ router.get('/:id', async (req, res) => {
 
     // Normalize images to URLs for API responses
     const prodObj = product.toObject ? product.toObject() : product;
-    prodObj.images = Array.isArray(prodObj.images) ? prodObj.images.map((img) => {
-      const imageUrl = (img && img.url) ? img.url : img;
-      // Build full URL for local files
-      return imageUrl.startsWith('http') ? imageUrl : buildImageUrl(imageUrl, req);
-    }) : [];
+    prodObj.images = normalizeProductImages(prodObj.images, req);
     res.json(prodObj);
   } catch (error) {
     console.error('Get product error:', error);
@@ -240,11 +245,7 @@ router.post('/', adminAuth, upload.array('images', 5), async (req, res) => {
 
     // Normalize response: build full URLs and convert images to URLs
     const prodObj = product.toObject ? product.toObject() : product;
-    prodObj.images = Array.isArray(prodObj.images) ? prodObj.images.map((img) => {
-      const imageUrl = (img && img.url) ? img.url : img;
-      // Build full URL for local files
-      return imageUrl.startsWith('http') ? imageUrl : buildImageUrl(imageUrl, req);
-    }) : [];
+    prodObj.images = normalizeProductImages(prodObj.images, req);
 
     res.status(201).json({
       message: 'Product created successfully',
@@ -318,11 +319,7 @@ router.put('/:id', adminAuth, upload.array('images', 5), async (req, res) => {
 
     // Normalize response: build full URLs and convert images to URLs
     const prodObj = product.toObject ? product.toObject() : product;
-    prodObj.images = Array.isArray(prodObj.images) ? prodObj.images.map((img) => {
-      const imageUrl = (img && img.url) ? img.url : img;
-      // Build full URL for local files
-      return imageUrl.startsWith('http') ? imageUrl : buildImageUrl(imageUrl, req);
-    }) : [];
+    prodObj.images = normalizeProductImages(prodObj.images, req);
 
     res.json({
       message: 'Product updated successfully',
