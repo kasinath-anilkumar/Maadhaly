@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: saree-store-client
+    env: node
+    plan: free
+    rootDir: client
+    buildCommand: npm run build
+    startCommand: npx serve -s dist -l 3000
+    envVars:
+      - key: VITE_API_URL
+        value: https://maadhaly-backend.onrender.com/api
+
+  - type: web
+    name: saree-store-admin
+    env: node
+    plan: free
+    rootDir: admin
+    buildCommand: npm run build
+    startCommand: npx serve -s dist -l 3000
+    envVars:
+      - key: VITE_API_URL
+        value: https://maadhaly-backend.onrender.com/api
