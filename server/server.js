@@ -59,13 +59,31 @@ connectDB();
 
 
 // Routes
-app.use('/api/auth', require('./routes/auth.routes'));
-app.use('/api/products', require('./routes/product.routes'));
-app.use('/api/categories', require('./routes/category.routes'));
-app.use('/api/orders', require('./routes/order.routes'));
-app.use('/api/users', require('./routes/user.routes'));
-app.use('/api/payment', require('./routes/payment.routes'));
-app.use('/api/dashboard', require('./routes/dashboard.routes'));
+const authRoutes = require('./routes/auth.routes');
+const productRoutes = require('./routes/product.routes');
+const categoryRoutes = require('./routes/category.routes');
+const orderRoutes = require('./routes/order.routes');
+const userRoutes = require('./routes/user.routes');
+const paymentRoutes = require('./routes/payment.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
+
+// Primary API namespace
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/payment', paymentRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+
+// Backward-compatible aliases (for clients still calling without /api)
+app.use('/auth', authRoutes);
+app.use('/products', productRoutes);
+app.use('/categories', categoryRoutes);
+app.use('/orders', orderRoutes);
+app.use('/users', userRoutes);
+app.use('/payment', paymentRoutes);
+app.use('/dashboard', dashboardRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
