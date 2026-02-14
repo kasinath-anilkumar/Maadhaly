@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: saree-store-client
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npx serve -s dist -l 3000
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+    rootDir: client
