@@ -21,6 +21,15 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
+const toSlug = (value = '') =>
+  String(value)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
 // Helper to build full image URL
 const buildImageUrl = (imagePath, req) => {
   if (!imagePath) return null;
@@ -29,6 +38,19 @@ const buildImageUrl = (imagePath, req) => {
   const protocol = req.protocol || 'http';
   const host = req.get('host');
   return `${protocol}://${host}${imagePath}`;
+};
+
+const handleDbError = (res, error) => {
+  if (error?.name === 'CastError') {
+    return res.status(400).json({ message: 'Invalid category id' });
+  }
+  if (error?.name === 'ValidationError') {
+    return res.status(400).json({ message: error.message });
+  }
+  if (error?.code === 11000) {
+    return res.status(409).json({ message: 'Category name or slug already exists' });
+  }
+  return res.status(500).json({ message: 'Server error', error: error?.message });
 };
 
 // @route   GET /api/categories
@@ -52,7 +74,7 @@ router.get('/', async (req, res) => {
     res.json(categoriesWithImages);
   } catch (error) {
     console.error('Get categories error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return handleDbError(res, error);
   }
 });
 
@@ -75,7 +97,7 @@ router.get('/:id', async (req, res) => {
     res.json(obj);
   } catch (error) {
     console.error('Get category error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return handleDbError(res, error);
   }
 });
 
@@ -85,11 +107,27 @@ router.get('/:id', async (req, res) => {
 router.post('/', adminAuth, upload.single('image'), async (req, res) => {
   try {
     const { name, description, slug, parent, order, isActive } = req.body;
-    
+    const trimmedName = String(name || '').trim();
+    if (!trimmedName) {
+      return res.status(400).json({ message: 'Category name is required' });
+    }
+
+    const finalSlug = toSlug(slug || trimmedName);
+    if (!finalSlug) {
+      return res.status(400).json({ message: 'Invalid category slug' });
+    }
+
+    const duplicate = await Category.findOne({
+      $or: [{ name: trimmedName }, { slug: finalSlug }]
+    });
+    if (duplicate) {
+      return res.status(409).json({ message: 'Category name or slug already exists' });
+    }
+
     const categoryData = {
-      name,
+      name: trimmedName,
       description,
-      slug: slug || name.toLowerCase().replace(/\s+/g, '-'),
+      slug: finalSlug,
       parent: parent || null,
       order: Number(order) || 0,
       isActive: isActive === 'true' || isActive === true // Handle both string and boolean
@@ -113,7 +151,7 @@ router.post('/', adminAuth, upload.single('image'), async (req, res) => {
     });
   } catch (error) {
     console.error('Create category error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return handleDbError(res, error);
   }
 });
 
@@ -123,20 +161,36 @@ router.post('/', adminAuth, upload.single('image'), async (req, res) => {
 router.put('/:id', adminAuth, upload.single('image'), async (req, res) => {
   try {
     const { name, description, slug, parent, order, isActive } = req.body;
+    const trimmedName = String(name || '').trim();
+    if (!trimmedName) {
+      return res.status(400).json({ message: 'Category name is required' });
+    }
+    const finalSlug = toSlug(slug || trimmedName);
+    if (!finalSlug) {
+      return res.status(400).json({ message: 'Invalid category slug' });
+    }
     
     // First, get the existing category to preserve image if not updating it
     const existingCategory = await Category.findById(req.params.id);
     if (!existingCategory) {
       return res.status(404).json({ message: 'Category not found' });
     }
+
+    const duplicate = await Category.findOne({
+      _id: { $ne: req.params.id },
+      $or: [{ name: trimmedName }, { slug: finalSlug }]
+    });
+    if (duplicate) {
+      return res.status(409).json({ message: 'Category name or slug already exists' });
+    }
     
     const categoryData = {
-      name,
+      name: trimmedName,
       description,
-      slug,
+      slug: finalSlug,
       parent: parent || null,
       order: Number(order),
-      isActive: isActive === 'true' // Convert string to boolean
+      isActive: isActive === 'true' || isActive === true // Convert string/boolean to boolean
     };
 
     // Only update image if a new one is provided
@@ -165,7 +219,7 @@ router.put('/:id', adminAuth, upload.single('image'), async (req, res) => {
     });
   } catch (error) {
     console.error('Update category error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return handleDbError(res, error);
   }
 });
 
@@ -183,7 +237,7 @@ router.delete('/:id', adminAuth, async (req, res) => {
     res.json({ message: 'Category deleted successfully' });
   } catch (error) {
     console.error('Delete category error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return handleDbError(res, error);
   }
 });
 

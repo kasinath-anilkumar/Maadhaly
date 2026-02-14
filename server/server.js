@@ -4,6 +4,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
 
 dotenv.config();
 
@@ -93,6 +94,17 @@ app.get('/api/health', (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'File too large. Max size is 10MB for category images and 15MB for product images.' });
+    }
+    return res.status(400).json({ message: err.message || 'Upload error' });
+  }
+
+  if (err?.message && err.message.toLowerCase().includes('invalid file type')) {
+    return res.status(400).json({ message: err.message });
+  }
+
   res.status(500).json({ message: 'Something went wrong!', error: err.message });
 });
 

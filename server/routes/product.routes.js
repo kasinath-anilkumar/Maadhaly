@@ -70,6 +70,19 @@ const buildImageUrl = (imagePath, req) => {
   return `${protocol}://${host}${imagePath}`;
 };
 
+const handleDbError = (res, error) => {
+  if (error?.name === 'CastError') {
+    return res.status(400).json({ message: 'Invalid resource id' });
+  }
+  if (error?.name === 'ValidationError') {
+    return res.status(400).json({ message: error.message });
+  }
+  if (error?.code === 11000) {
+    return res.status(409).json({ message: 'Duplicate value for a unique field' });
+  }
+  return res.status(500).json({ message: 'Server error', error: error?.message });
+};
+
 // Normalize image payloads from mixed legacy formats (string/object/null)
 const normalizeProductImages = (images, req) => {
   if (!Array.isArray(images)) return [];
@@ -159,7 +172,7 @@ router.get('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Get products error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return handleDbError(res, error);
   }
 });
 
@@ -180,7 +193,7 @@ router.get('/featured', async (req, res) => {
     res.json(productsPlain);
   } catch (error) {
     console.error('Get featured products error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return handleDbError(res, error);
   }
 });
 
@@ -203,7 +216,7 @@ router.get('/:id', async (req, res) => {
     res.json(prodObj);
   } catch (error) {
     console.error('Get product error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return handleDbError(res, error);
   }
 });
 
@@ -253,7 +266,7 @@ router.post('/', adminAuth, upload.array('images', 5), async (req, res) => {
     });
   } catch (error) {
     console.error('Create product error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return handleDbError(res, error);
   }
 });
 
@@ -327,7 +340,7 @@ router.put('/:id', adminAuth, upload.array('images', 5), async (req, res) => {
     });
   } catch (error) {
     console.error('Update product error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return handleDbError(res, error);
   }
 });
 
@@ -345,7 +358,7 @@ router.delete('/:id', adminAuth, async (req, res) => {
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {
     console.error('Delete product error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return handleDbError(res, error);
   }
 });
 
@@ -385,7 +398,7 @@ router.post('/:id/review', auth, async (req, res) => {
     res.status(201).json({ message: 'Review added successfully' });
   } catch (error) {
     console.error('Add review error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return handleDbError(res, error);
   }
 });
 
