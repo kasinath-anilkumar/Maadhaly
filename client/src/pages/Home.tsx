@@ -64,11 +64,11 @@ const Home: React.FC = () => {
 
   // Carsoule
 
-const slides = [
-  { img: banner1 },
-  { img: banner2 },
-  { img: banner3 },
-];
+  const slides = [
+    { img: banner1 },
+    { img: banner2 },
+    { img: banner3 },
+  ];
 
 
   const [current, setCurrent] = useState(0);
@@ -87,39 +87,38 @@ const slides = [
     <div className="min-h-screen pt-0">
       <section className="relative w-full h-[80dvh] overflow-hidden ">
 
-  {slides.map((s, i) => (
-    <div
-      key={i}
-      className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-        i === current ? "opacity-100" : "opacity-0"
-      }`}
-    >
-      <img
-        src={s.img}
-        className="w-full h-full object-cover"
-      />
-    </div>
-  ))}
-
-  {/* Indicators with loader */}
-  <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-3">
-    {slides.map((_, i) => (
-      <div
-        key={i}
-        onClick={() => setCurrent(i)}
-        className="w-8 h-[3px] bg-white/40 cursor-pointer overflow-hidden"
-      >
-        {i === current && (
+        {slides.map((s, i) => (
           <div
-            className="h-full bg-[#7a1f3d] loader-bar"
-            style={{ animationDuration: `${duration}ms` }}
-          />
-        )}
-      </div>
-    ))}
-  </div>
+            key={i}
+            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${i === current ? "opacity-100" : "opacity-0"
+              }`}
+          >
+            <img
+              src={s.img}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ))}
 
-</section>
+        {/* Indicators with loader */}
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-3">
+          {slides.map((_, i) => (
+            <div
+              key={i}
+              onClick={() => setCurrent(i)}
+              className="w-8 h-[3px] bg-white/40 cursor-pointer overflow-hidden"
+            >
+              {i === current && (
+                <div
+                  className="h-full bg-[#7a1f3d] loader-bar"
+                  style={{ animationDuration: `${duration}ms` }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+
+      </section>
 
       <hr />
 
@@ -143,20 +142,21 @@ const slides = [
             <span className="font-bold text-primary-burgundy"> MAADHALY10</span>
           </div>
         </Marquee>
-      
+
 
       </section> <hr />
 
 
 
       {/* New Arrivals Section */}
-      <section className=" py-8 bg-[#f8f8ff] px-5">
-        <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center mb-12">
+      <section className="py-8 bg-[#f8f8ff] px-4">
+        <div className="container mx-auto">
+          <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between mb-5 lg:mb-12">
             <div>
               <h2 className="text-3xl font-bold mb-2">New Arrivals</h2>
               <p className="text-gray-600">Discover our latest collection</p>
             </div>
+
             <Link to="/shop">
               <Button variant="outline">
                 View All
@@ -164,18 +164,22 @@ const slides = [
               </Button>
             </Link>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-8">
+
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 lg:gap-8 py-5 lg:py-12">
             {newArrivals.map((product) => (
               <ProductCard key={product._id} product={product} />
             ))}
           </div>
         </div>
-      </section> <hr />
+      </section>
+
+      <hr />
+
 
       {/* Features Section */}
-      <section className="py-16 bg-[#f8f8ff] px-5">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+      <section className=" py-5 bg-[#f8f8ff] px-3">
+        <div className="container mx-auto px-1">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {features.map((feature, index) => (
               <Card key={index} className="border-0 shadow-md">
                 <CardContent className="p-6 text-center">

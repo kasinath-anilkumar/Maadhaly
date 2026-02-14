@@ -14,7 +14,7 @@ const ProductDetail: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const { addToCart } = useCart();
-  
+
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -33,7 +33,7 @@ const ProductDetail: React.FC = () => {
       setLoading(true);
       const response = await productAPI.getById(id!);
       setProduct(response.data);
-      
+
       // Fetch related products from same category
       if (response.data.category) {
         const relatedRes = await productAPI.getByCategory(
@@ -132,7 +132,7 @@ const ProductDetail: React.FC = () => {
         <div className="grid md:grid-cols-2 gap-8 mb-16">
           {/* Image Gallery */}
           <div className="space-y-4">
-            <div className="bg-white rounded-xl overflow-hidden aspect-[3/4]">
+            <div className="bg-white rounded-sm overflow-hidden aspect-[3/4]">
               <img
                 src={product.images[selectedImage] || 'https://via.placeholder.com/600'}
                 alt={product.name}
@@ -145,9 +145,8 @@ const ProductDetail: React.FC = () => {
                   <button
                     key={index}
                     onClick={() => setSelectedImage(index)}
-                    className={`w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border-2 ${
-                      selectedImage === index ? 'border-rose-600' : 'border-transparent'
-                    }`}
+                    className={`w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border-2 ${selectedImage === index ? 'border-rose-600' : 'border-transparent'
+                      }`}
                   >
                     <img
                       src={image}
@@ -169,11 +168,10 @@ const ProductDetail: React.FC = () => {
                   {[...Array(5)].map((_, i) => (
                     <Star
                       key={i}
-                      className={`h-5 w-5 ${
-                        i < Math.floor(product.ratings.average)
+                      className={`h-5 w-5 ${i < Math.floor(product.ratings.average)
                           ? 'text-yellow-500 fill-yellow-500'
                           : 'text-gray-300'
-                      }`}
+                        }`}
                     />
                   ))}
                   <span className="ml-2 text-gray-500">
@@ -246,20 +244,20 @@ const ProductDetail: React.FC = () => {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-4">
+            <div className="flex gap-4 flex-col md:flex-row ">
               <Button
                 size="lg"
-                className="flex-1 bg-primary-burgundy hover:bg-black text-white"
+                className=" bg-primary-burgundy hover:bg-black text-white"
                 onClick={handleAddToCart}
                 disabled={product.stock === 0}
               >
-                <ShoppingCart className="mr-2 h-5 w-5" />
+                <ShoppingCart className="mr-2" />
                 Add to Cart
               </Button>
               <Button
                 size="lg"
                 variant="outline"
-                className="flex-1"
+                className="sm:py-5 lg:flex-1"
                 onClick={handleBuyNow}
                 disabled={product.stock === 0}
               >
@@ -269,11 +267,14 @@ const ProductDetail: React.FC = () => {
                 size="lg"
                 variant="outline"
                 onClick={toggleWishlist}
+                className="absolute right-5 top-36 lg:relative lg:right-auto lg:top-auto"
               >
                 <Heart
-                  className={`h-5 w-5 ${isInWishlist ? 'fill-rose-600 text-rose-600' : ''}`}
+                  className={`h-5 w-5 ${isInWishlist ? 'fill-rose-600 text-rose-600' : ''
+                    }`}
                 />
               </Button>
+
             </div>
 
             {/* Trust Badges */}
@@ -344,11 +345,10 @@ const ProductDetail: React.FC = () => {
                           {[...Array(5)].map((_, i) => (
                             <Star
                               key={i}
-                              className={`h-4 w-4 ${
-                                i < review.rating
+                              className={`h-4 w-4 ${i < review.rating
                                   ? 'text-yellow-500 fill-yellow-500'
                                   : 'text-gray-300'
-                              }`}
+                                }`}
                             />
                           ))}
                         </div>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Facebook, Instagram, Twitter, Youtube, Mail, Phone, MapPin } from 'lucide-react';
+import logo from '../assests/logo.png';
 
 const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear();
@@ -40,8 +41,7 @@ const Footer: React.FC = () => {
           {/* Brand */}
           <div className="lg:col-span-1">
             <Link to="/" className="flex items-center gap-2 mb-4">
-              <span className="text-2xl font-bold text-rose-500">Saree</span>
-              <span className="text-2xl font-bold text-white">Store</span>
+              <img src={logo} className="h-10 w-50 brightness-150" alt="Maadhaly Logo" />
             </Link>
             <p className="text-gray-400 text-sm mb-4">
               Discover the elegance of traditional Indian sarees. Handpicked collection from
