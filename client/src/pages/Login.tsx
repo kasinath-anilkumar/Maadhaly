@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 
+const ADMIN_APP_URL = (import.meta.env.VITE_ADMIN_URL || 'https://maadhaly-admin.onrender.com').replace(/\/+$/, '');
+
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -27,8 +29,12 @@ const Login: React.FC = () => {
     
     try {
       setLoading(true);
-      await login(formData.email, formData.password);
+      const loggedInUser = await login(formData.email, formData.password);
       toast.success('Login successful!');
+      if (loggedInUser?.role === 'admin') {
+        window.location.href = ADMIN_APP_URL;
+        return;
+      }
       navigate(from);
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Login failed');
