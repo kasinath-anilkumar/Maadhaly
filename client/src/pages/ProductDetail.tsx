@@ -8,6 +8,13 @@ import { productAPI, wishlistAPI } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import type { Product } from '@/types';
+import payment_1 from '../assests/payment_1.png';
+import payment_2 from '../assests/Payment_2.png';
+import payment_3 from '../assests/Payment_3.png';
+import payment_4 from '../assests/Payment_4.png';
+
+
+
 
 const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -22,6 +29,10 @@ const ProductDetail: React.FC = () => {
   const [isInWishlist, setIsInWishlist] = useState(false);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
 
+  const productImages = product?.images?.length
+    ? product.images
+    : ['https://via.placeholder.com/600'];
+
   useEffect(() => {
     if (id) {
       fetchProduct();
@@ -33,6 +44,7 @@ const ProductDetail: React.FC = () => {
       setLoading(true);
       const response = await productAPI.getById(id!);
       setProduct(response.data);
+      setSelectedImage(0);
 
       // Fetch related products from same category
       if (response.data.category) {
@@ -116,7 +128,14 @@ const ProductDetail: React.FC = () => {
       </div>
     );
   }
-
+  const originalPrice = Number(product.originalPrice || 0);
+  const offerPrice = Number(product.price || 0);
+  const fallbackDiscount =
+    originalPrice > offerPrice && offerPrice > 0
+      ? Math.round(((originalPrice - offerPrice) / originalPrice) * 100)
+      : 0;
+  const displayDiscount = (product.discount ?? 0) > 0 ? (product.discount ?? 0) : fallbackDiscount;
+  const hasOffer = originalPrice > offerPrice && displayDiscount > 0;
   return (
     <div className="min-h-screen bg-[#f8f8ff] py-4">
       <div className="container mx-auto px-4">
@@ -129,23 +148,42 @@ const ProductDetail: React.FC = () => {
           <span className="text-gray-900">{product.name}</span>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 mb-16">
+        <div className="grid md:grid-cols-2 gap-8 mb-16 items-start">
           {/* Image Gallery */}
           <div className="space-y-4">
-            <div className="bg-white rounded-sm overflow-hidden aspect-[3/4]">
-              <img
-                src={product.images[selectedImage] || 'https://via.placeholder.com/600'}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            {product.images.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto">
-                {product.images.map((image, index) => (
+            <div className="flex gap-3">
+              <div className="hidden sm:flex flex-col gap-2 shrink-0">
+                {productImages.map((image, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedImage(index)}
-                    className={`w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border-2 ${selectedImage === index ? 'border-rose-600' : 'border-transparent'
+                    className={`w-20 h-20 rounded-lg overflow-hidden border-2 ${selectedImage === index ? 'border-rose-600' : 'border-transparent'
+                      }`}
+                  >
+                    <img
+                      src={image}
+                      alt={`${product.name} thumbnail ${index + 1}`}
+                      className="w-full h-full object-cover rounded-md"
+                    />
+                  </button>
+                ))}
+              </div>
+              <div className="bg-[#f8f8ff] rounded-sm overflow-hidden w-full flex items-center justify-center max-h-[550px] md:max-h-[650px] lg:max-h-[700px] cursor-pointer">
+                <img
+                  src={productImages[selectedImage] || productImages[0]}
+                  alt={product.name}
+                  className="max-h-full w-auto object-contain"
+                />
+              </div>
+
+            </div>
+            {productImages.length > 1 && (
+              <div className="sm:hidden flex gap-2 overflow-x-auto">
+                {productImages.map((image, index) => (
+                  <button
+                    key={`mobile-${index}`}
+                    onClick={() => setSelectedImage(index)}
+                    className={`w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 ${selectedImage === index ? 'border-rose-600' : 'border-transparent'
                       }`}
                   >
                     <img
@@ -155,6 +193,11 @@ const ProductDetail: React.FC = () => {
                     />
                   </button>
                 ))}
+              </div>
+            )}
+            {productImages.length > 1 && (
+              <div className="hidden sm:block text-xs text-gray-500">
+                {selectedImage + 1} / {productImages.length}
               </div>
             )}
           </div>
@@ -169,8 +212,8 @@ const ProductDetail: React.FC = () => {
                     <Star
                       key={i}
                       className={`h-5 w-5 ${i < Math.floor(product.ratings.average)
-                          ? 'text-yellow-500 fill-yellow-500'
-                          : 'text-gray-300'
+                        ? 'text-yellow-500 fill-yellow-500'
+                        : 'text-gray-300'
                         }`}
                     />
                   ))}
@@ -185,13 +228,13 @@ const ProductDetail: React.FC = () => {
               <span className="text-3xl font-bold text-[#800020]">
                 ₹{product.price.toLocaleString()}
               </span>
-              {product.originalPrice && (
+              {hasOffer && (
                 <>
                   <span className="text-3xl text-[#800020] opacity-60 line-through">
-                    ₹{product.originalPrice.toLocaleString()}
+                    ₹{originalPrice.toLocaleString()}
                   </span>
                   <span className="bg-rose-100 text-rose-600 px-3 py-1 rounded-full text-sm font-medium">
-                    {product.discount}% OFF
+                    {displayDiscount}% OFF
                   </span>
                 </>
               )}
@@ -292,11 +335,39 @@ const ProductDetail: React.FC = () => {
                 Easy Returns
               </div>
             </div>
-          </div>
-        </div>
+            {/* Secure Payment Section */}
+            <div className="border rounded-xl p-4 bg-gray-50">
 
-        {/* Product Tabs */}
-        <div className="mb-16">
+              {/* Title */}
+              <div className="flex items-center gap-2 mb-3">
+                <Shield className="h-5 w-5 text-green-600" />
+                <span className="font-semibold text-gray-800">Secure Payments</span>
+              </div>
+
+              {/* Payment Icons */}
+              <div className="flex items-center justify-around flex-wrap">
+                <img src={payment_1} alt="UPI" className="w-14 h-12 object-contain" />
+                <img src={payment_2} alt="Visa" className="w-14 h-12 object-contain" />
+                <img src={payment_3} alt="Mastercard" className="w-14 h-12 object-contain" />
+                <img src={payment_4} alt="RuPay" className="w-14 h-12 object-contain" />
+              </div>
+
+              {/* Safety note */}
+              <p className="text-xs text-gray-500 mt-3">
+                100% secure payments.
+              </p>
+
+            </div>
+
+          </div>
+
+
+
+
+
+        </div>
+        {/* Products Tab */}
+        <div className="mb-16 container sm:px-0 md:px-4">
           <Tabs defaultValue="description">
             <TabsList className="w-full justify-start">
               <TabsTrigger value="description">Description</TabsTrigger>
@@ -307,7 +378,7 @@ const ProductDetail: React.FC = () => {
               <p className="text-gray-600">{product.description}</p>
             </TabsContent>
             <TabsContent value="details" className="bg-white p-6 rounded-xl">
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid md:grid-cols1 gap-4">
                 <div>
                   <h4 className="font-semibold mb-2">Product Information</h4>
                   <table className="w-full text-sm">
@@ -346,8 +417,8 @@ const ProductDetail: React.FC = () => {
                             <Star
                               key={i}
                               className={`h-4 w-4 ${i < review.rating
-                                  ? 'text-yellow-500 fill-yellow-500'
-                                  : 'text-gray-300'
+                                ? 'text-yellow-500 fill-yellow-500'
+                                : 'text-gray-300'
                                 }`}
                             />
                           ))}
@@ -400,3 +471,5 @@ const ProductDetail: React.FC = () => {
 };
 
 export default ProductDetail;
+
+

@@ -316,12 +316,12 @@ const ProductCard: React.FC<{ product: Product; viewMode: 'grid' | 'list' }> = (
   if (viewMode === 'list') {
     return (
       <Link to={`/product/${product._id}`} className="group">
-        <div className="bg-[#f8f8ff] rounded-sm overflow-hidden shadow-md hover:shadow-xl transition-shadow flex">
+        <div className="bg-[#f8f8ff] rounded-sm overflow-hidden hover:shadow-xl transition-shadow flex">
           <div className="w-48 h-48 flex-shrink-0 overflow-hidden">
             <img
               src={product.images[0] || 'https://via.placeholder.com/300'}
               alt={product.name}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 rounded-sm"
             />
           </div>
           <div className="p-6 flex-1">
@@ -346,7 +346,7 @@ const ProductCard: React.FC<{ product: Product; viewMode: 'grid' | 'list' }> = (
 
   return (
     <Link to={`/product/${product._id}`} className="group">
-      <div className="bg-[#f8f8ff] rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-shadow">
+      <div className="bg-[#f8f8ff] rounded-sm overflow-hidden shadow-md hover:shadow-xl transition-shadow">
         <div className="relative aspect-[3/4] overflow-hidden">
           <img
             src={product.images[0] || 'https://via.placeholder.com/300'}

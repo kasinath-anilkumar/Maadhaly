@@ -48,6 +48,7 @@ const upload = multer({
   fileFilter,
   limits: { fileSize: 15 * 1024 * 1024 } // 15MB limit
 });
+const MAX_PRODUCT_IMAGES = 20;
 
 // Helper to upload buffer to Cloudinary
 const uploadBufferToCloudinary = (buffer, folder = 'saree-store/products') => {
@@ -98,6 +99,62 @@ const normalizeProductImages = (images, req) => {
     })
     .filter((url) => typeof url === 'string' && url.length > 0)
     .map((url) => buildImageUrl(url, req));
+};
+
+const normalizeIncomingImages = (images) => {
+  if (!Array.isArray(images)) return [];
+
+  return images
+    .map((img) => {
+      if (typeof img === 'string') {
+        return { url: img, public_id: null };
+      }
+      if (img && typeof img === 'object') {
+        if (typeof img.url === 'string' && img.url.trim()) {
+          return { url: img.url, public_id: img.public_id || null };
+        }
+        if (typeof img.secure_url === 'string' && img.secure_url.trim()) {
+          return { url: img.secure_url, public_id: img.public_id || null };
+        }
+      }
+      return null;
+    })
+    .filter(Boolean);
+};
+
+const toFiniteNumber = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const calculatePricing = (priceValue, originalPriceValue) => {
+  const price = toFiniteNumber(priceValue);
+  const originalPrice = toFiniteNumber(originalPriceValue);
+
+  if (price === null || price < 0) return null;
+
+  if (originalPrice !== null && originalPrice > price) {
+    const discount = Math.round(((originalPrice - price) / originalPrice) * 100);
+    return { price, originalPrice, discount };
+  }
+
+  return { price, originalPrice: undefined, discount: 0 };
+};
+
+const applyPricingToResponse = (productObj) => {
+  const pricing = calculatePricing(productObj.price, productObj.originalPrice);
+  if (!pricing) return productObj;
+
+  productObj.price = pricing.price;
+  productObj.discount = pricing.discount;
+  if (pricing.originalPrice !== undefined) {
+    productObj.originalPrice = pricing.originalPrice;
+  } else {
+    delete productObj.originalPrice;
+  }
+
+  return productObj;
 };
 
 // @route   GET /api/products
@@ -158,7 +215,7 @@ router.get('/', async (req, res) => {
     const productsPlain = products.map((p) => {
       const obj = p.toObject ? p.toObject() : p;
       obj.images = normalizeProductImages(obj.images, req);
-      return obj;
+      return applyPricingToResponse(obj);
     });
 
     res.json({
@@ -188,7 +245,7 @@ router.get('/featured', async (req, res) => {
     const productsPlain = products.map((p) => {
       const obj = p.toObject ? p.toObject() : p;
       obj.images = normalizeProductImages(obj.images, req);
-      return obj;
+      return applyPricingToResponse(obj);
     });
     res.json(productsPlain);
   } catch (error) {
@@ -213,7 +270,7 @@ router.get('/:id', async (req, res) => {
     // Normalize images to URLs for API responses
     const prodObj = product.toObject ? product.toObject() : product;
     prodObj.images = normalizeProductImages(prodObj.images, req);
-    res.json(prodObj);
+    res.json(applyPricingToResponse(prodObj));
   } catch (error) {
     console.error('Get product error:', error);
     return handleDbError(res, error);
@@ -223,9 +280,16 @@ router.get('/:id', async (req, res) => {
 // @route   POST /api/products
 // @desc    Create a new product
 // @access  Private/Admin
-router.post('/', adminAuth, upload.array('images', 5), async (req, res) => {
+router.post('/', adminAuth, upload.array('images', MAX_PRODUCT_IMAGES), async (req, res) => {
   try {
     const productData = JSON.parse(req.body.data || '{}');
+    const pricing = calculatePricing(productData.price, productData.originalPrice);
+    if (!pricing) {
+      return res.status(400).json({ message: 'Please enter a valid offer price' });
+    }
+    productData.price = pricing.price;
+    productData.originalPrice = pricing.originalPrice;
+    productData.discount = pricing.discount;
     
     // Add image paths (upload to Cloudinary or local storage)
     if (req.files && req.files.length > 0) {
@@ -273,9 +337,27 @@ router.post('/', adminAuth, upload.array('images', 5), async (req, res) => {
 // @route   PUT /api/products/:id
 // @desc    Update a product
 // @access  Private/Admin
-router.put('/:id', adminAuth, upload.array('images', 5), async (req, res) => {
+router.put('/:id', adminAuth, upload.array('images', MAX_PRODUCT_IMAGES), async (req, res) => {
   try {
     const productData = JSON.parse(req.body.data || '{}');
+    const existingProduct = await Product.findById(req.params.id);
+    if (!existingProduct) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    const hasPriceField = Object.prototype.hasOwnProperty.call(productData, 'price');
+    const hasOriginalPriceField = Object.prototype.hasOwnProperty.call(productData, 'originalPrice');
+    const pricing = calculatePricing(
+      hasPriceField ? productData.price : existingProduct.price,
+      hasOriginalPriceField ? productData.originalPrice : existingProduct.originalPrice
+    );
+
+    if (!pricing) {
+      return res.status(400).json({ message: 'Please enter a valid offer price' });
+    }
+    productData.price = pricing.price;
+    productData.originalPrice = pricing.originalPrice;
+    productData.discount = pricing.discount;
     
     // Add new image paths if uploaded
     if (req.files && req.files.length > 0) {
@@ -285,11 +367,7 @@ router.put('/:id', adminAuth, upload.array('images', 5), async (req, res) => {
         const newUploads = await Promise.all(uploadPromises);
 
         // Normalize keepImages: allow array of URLs or objects
-        const keep = Array.isArray(productData.keepImages) ? productData.keepImages.map((k) => {
-          if (typeof k === 'string') return { url: k, public_id: null };
-          if (k && typeof k === 'object') return { url: k.url || k, public_id: k.public_id || null };
-          return null;
-        }).filter(Boolean) : [];
+        const keep = normalizeIncomingImages(productData.keepImages);
 
         if (keep.length > 0) {
           productData.images = [...keep, ...newUploads];
@@ -304,11 +382,7 @@ router.put('/:id', adminAuth, upload.array('images', 5), async (req, res) => {
         }));
 
         // Normalize keepImages: allow array of URLs or objects
-        const keep = Array.isArray(productData.keepImages) ? productData.keepImages.map((k) => {
-          if (typeof k === 'string') return { url: k, public_id: null };
-          if (k && typeof k === 'object') return { url: k.url || k, public_id: k.public_id || null };
-          return null;
-        }).filter(Boolean) : [];
+        const keep = normalizeIncomingImages(productData.keepImages);
 
         if (keep.length > 0) {
           productData.images = [...keep, ...newUploads];
@@ -316,6 +390,8 @@ router.put('/:id', adminAuth, upload.array('images', 5), async (req, res) => {
           productData.images = newUploads;
         }
       }
+    } else if (Array.isArray(productData.keepImages)) {
+      productData.images = normalizeIncomingImages(productData.keepImages);
     }
 
     delete productData.keepImages;

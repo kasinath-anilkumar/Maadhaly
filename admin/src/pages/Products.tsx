@@ -1,6 +1,6 @@
 import { categoryAPI, productAPI } from '@/services/api';
 import { Edit2, Plus, Search, Trash2 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 interface Product {
@@ -16,6 +16,7 @@ interface Product {
   fabric?: string;
   color?: string;
   sku?: string;
+  isFeatured?: boolean;
 }
 
 const Products: React.FC = () => {
@@ -34,8 +35,27 @@ const Products: React.FC = () => {
     fabric: '',
     color: '',
     sku: '',
+    isFeatured: false,
   });
-  const [images, setImages] = useState<FileList | null>(null);
+  const [images, setImages] = useState<File[]>([]);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
+
+  const imagePreviews = useMemo(
+    () => images.map((file) => URL.createObjectURL(file)),
+    [images]
+  );
+  const offerPrice = Number(formData.price || 0);
+  const originalPrice = Number(formData.originalPrice || 0);
+  const computedDiscount =
+    originalPrice > offerPrice && offerPrice > 0
+      ? Math.round(((originalPrice - offerPrice) / originalPrice) * 100)
+      : 0;
+
+  useEffect(() => {
+    return () => {
+      imagePreviews.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [imagePreviews]);
 
   useEffect(() => {
     fetchProducts();
@@ -60,6 +80,15 @@ const Products: React.FC = () => {
     }
   };
 
+  const handleImageSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || []);
+    if (!selectedFiles.length) return;
+
+    setImages((prev) => [...prev, ...selectedFiles]);
+    // Allow picking the same file again if user removed it from preview
+    e.target.value = '';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -69,13 +98,11 @@ const Products: React.FC = () => {
         price: Number(formData.price),
         originalPrice: formData.originalPrice ? Number(formData.originalPrice) : undefined,
         stock: Number(formData.stock),
+        isFeatured: Boolean(formData.isFeatured),
+        keepImages: editingProduct ? existingImages : undefined,
       }));
       
-      if (images) {
-        Array.from(images).forEach((image) => {
-          data.append('images', image);
-        });
-      }
+      images.forEach((image) => data.append('images', image));
 
       if (editingProduct) {
         await productAPI.update(editingProduct._id, data);
@@ -117,7 +144,10 @@ const Products: React.FC = () => {
       fabric: product.fabric || '',
       color: product.color || '',
       sku: product.sku || '',
+      isFeatured: Boolean(product.isFeatured),
     });
+    setExistingImages(product.images || []);
+    setImages([]);
     setShowModal(true);
   };
 
@@ -132,8 +162,10 @@ const Products: React.FC = () => {
       fabric: '',
       color: '',
       sku: '',
+      isFeatured: false,
     });
-    setImages(null);
+    setImages([]);
+    setExistingImages([]);
   };
 
   const filteredProducts = products.filter((p) =>
@@ -280,7 +312,7 @@ const Products: React.FC = () => {
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Price (₹)</label>
+                  <label className="block text-sm font-medium mb-1">Offer Price (₹)</label>
                   <input
                     type="number"
                     value={formData.price}
@@ -309,6 +341,19 @@ const Products: React.FC = () => {
                   />
                 </div>
               </div>
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={Boolean(formData.isFeatured)}
+                  onChange={(e) => setFormData({ ...formData, isFeatured: e.target.checked })}
+                />
+                Mark as Featured Product
+              </label>
+              {computedDiscount > 0 && (
+                <p className="text-sm text-green-700">
+                  Calculated discount: {computedDiscount}% OFF
+                </p>
+              )}
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
@@ -353,9 +398,50 @@ const Products: React.FC = () => {
                   type="file"
                   multiple
                   accept="image/*"
-                  onChange={(e) => setImages(e.target.files)}
+                  onChange={handleImageSelection}
                   className="w-full border rounded-lg px-3 py-2"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Add one or more images as needed
+                </p>
+                {(existingImages.length > 0 || imagePreviews.length > 0) && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {existingImages.map((image, index) => (
+                      <div key={`existing-${index}`} className="relative">
+                        <img
+                          src={image}
+                          alt={`Existing ${index + 1}`}
+                          className="w-16 h-16 rounded border object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setExistingImages((prev) => prev.filter((_, i) => i !== index))}
+                          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-black text-white text-xs"
+                          aria-label="Remove existing image"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    {imagePreviews.map((preview, index) => (
+                      <div key={`new-${index}`} className="relative">
+                        <img
+                          src={preview}
+                          alt={`New ${index + 1}`}
+                          className="w-16 h-16 rounded border object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setImages((prev) => prev.filter((_, i) => i !== index))}
+                          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-black text-white text-xs"
+                          aria-label="Remove new image"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-4 pt-4">

@@ -42,12 +42,12 @@ const Home: React.FC = () => {
     {
       icon: Truck,
       title: 'Free Shipping',
-      description: 'Free delivery on orders above ₹999',
+      description: 'Free delivery on All Orders.',
     },
     {
       icon: Shield,
       title: 'Secure Payment',
-      description: '100% secure payment with Razorpay',
+      description: '100% secure payment',
     },
     {
       icon: Headphones,
@@ -56,8 +56,8 @@ const Home: React.FC = () => {
     },
     {
       icon: ShoppingBag,
-      title: 'Easy Returns',
-      description: '7-day easy return policy',
+      title: 'Handpicked Quality',
+      description: 'Only the best sarees for you',
     },
   ];
 
@@ -151,7 +151,7 @@ const Home: React.FC = () => {
       {/* New Arrivals Section */}
       <section className="py-8 bg-[#f8f8ff] px-4">
         <div className="container mx-auto">
-          <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between mb-5 lg:mb-12">
+          <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between mb-5">
             <div>
               <h2 className="text-3xl font-bold mb-2">New Arrivals</h2>
               <p className="text-gray-600">Discover our latest collection</p>
@@ -165,7 +165,7 @@ const Home: React.FC = () => {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 lg:gap-8 py-5 lg:py-12">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 lg:gap-8 py-5">
             {newArrivals.map((product) => (
               <ProductCard key={product._id} product={product} />
             ))}
@@ -197,44 +197,62 @@ const Home: React.FC = () => {
 
       {/* Categories Section */}
       <section className="py-16 bg-[#f8f8ff] px-5">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Shop by Category</h2>
-            <p className="text-gray-600">Explore our wide range of traditional sarees</p>
+  <div className="container mx-auto px-4">
+
+    {/* Heading */}
+    <div className="text-center mb-12">
+      <h2 className="text-3xl font-bold mb-4">Shop by Category</h2>
+      <p className="text-gray-600">
+        Explore our wide range of traditional sarees
+      </p>
+    </div>
+
+    {/* Grid */}
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+      {categories.map((category) => (
+        <Link
+          key={category._id}
+          to={`/shop?category=${category._id}`}
+          className="group"
+        >
+          <div className="relative overflow-hidden rounded-xl aspect-[4/5] shadow-sm hover:shadow-md transition-all duration-300">
+
+            {/* Image */}
+            <img
+              src={category.image || 'https://via.placeholder.com/300'}
+              alt={category.name}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+            />
+
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+
+            {/* Category name */}
+            <div className="absolute bottom-3 left-3 right-3">
+              <span className="text-white font-semibold text-sm md:text-base">
+                {category.name}
+              </span>
+            </div>
+
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-            {categories.map((category) => (
-              <Link
-                key={category._id}
-                to={`/shop?category=${category._id}`}
-                className="group"
-              >
-                <div className="relative overflow-hidden rounded-xl aspect-square">
-                  <img
-                    src={category.image || 'https://via.placeholder.com/300'}
-                    alt={category.name}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-4">
-                    <span className="text-white font-semibold">{category.name}</span>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section> <hr />
+        </Link>
+      ))}
+    </div>
+
+  </div>
+</section> <hr />
+
 
       {/* Featured Products Section */}
       <section className="py-16 bg-[#f8f8ff] px-5">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-12">
             <div>
-              <h2 className="text-3xl font-bold mb-2">Featured Products</h2>
-              <p className="text-gray-600">Handpicked sarees just for you</p>
+              <h2 className=" sm:text-xl lg:text-3xl font-bold mb-2">Featured Products</h2>
+              <p className="text-gray-600 sm:text-lg lg:text-xl">Handpicked sarees just for you</p>
             </div>
             <Link to="/shop">
-              <Button variant="outline">
+              <Button variant="outline" className='sm:w-5 sm:h-8 lg:w-full lg:h-full'>
                 View All
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -287,26 +305,36 @@ const Home: React.FC = () => {
 const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
   return (
     <Link to={`/product/${product._id}`} className="group">
-      <div className="bg-[#f8f8ff] rounded-sm overflow-hidden shadow-sm hover:shadow-sm transition-shadow">
-        <div className="relative aspect-[3/4] overflow-hidden">
+      <div className="bg-[#f8f8ff] rounded-sm overflow-hidden border border-gray-200 hover:shadow-sm transition-shadow">
+        
+        {/* Image */}
+        <div className="relative aspect-[4/5] overflow-hidden">
           <img
             src={product.images[0] || 'https://via.placeholder.com/300'}
             alt={product.name}
-            className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
-          {product.discount && product.discount > 0 && (
+
+          {(product.discount ?? 0) > 0 && (
             <div className="absolute top-3 left-3 bg-primary-burgundy text-white px-3 py-1 rounded-full text-sm font-medium">
-              {product.discount}% OFF
+              {product.discount ?? 0}% OFF
             </div>
           )}
         </div>
+
+        {/* Info */}
         <div className="p-4">
-          <h3 className="font-semibold text-gray-900 mb-1 truncate">{product.name}</h3>
+          <h3 className="font-semibold text-gray-900 mb-1 truncate">
+            {product.name}
+          </h3>
+
           <p className="text-sm text-gray-500 mb-2">{product.fabric}</p>
+
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold text-primary-burgundy">
               ₹{product.price.toLocaleString()}
             </span>
+
             {product.originalPrice && (
               <span className="text-sm text-gray-400 line-through">
                 ₹{product.originalPrice.toLocaleString()}
@@ -314,9 +342,11 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
             )}
           </div>
         </div>
+
       </div>
     </Link>
   );
 };
+
 
 export default Home;
