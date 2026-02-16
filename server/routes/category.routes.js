@@ -1,25 +1,42 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path');
+const cloudinary = require('cloudinary').v2;
+const streamifier = require('streamifier');
 const Category = require('../models/Category');
 const { auth, adminAuth } = require('../middleware/auth');
 
-// Configure multer for image uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/categories/');
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'category-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+const cloudinaryEnabled = Boolean(
+  process.env.CLOUDINARY_CLOUD_NAME &&
+  process.env.CLOUDINARY_API_KEY &&
+  process.env.CLOUDINARY_API_SECRET
+);
+
+if (cloudinaryEnabled) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+} else {
+  console.warn('Cloudinary is not configured. Category image uploads are disabled until CLOUDINARY_* env vars are set.');
+}
 
 const upload = multer({ 
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
+
+// Helper to upload buffer to Cloudinary
+const uploadBufferToCloudinary = (buffer, folder = 'saree-store/categories') => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream({ folder }, (error, result) => {
+      if (error) return reject(error);
+      resolve({ url: result.secure_url, public_id: result.public_id });
+    });
+    streamifier.createReadStream(buffer).pipe(uploadStream);
+  });
+};
 
 const toSlug = (value = '') =>
   String(value)
@@ -33,11 +50,18 @@ const toSlug = (value = '') =>
 // Helper to build full image URL
 const buildImageUrl = (imagePath, req) => {
   if (!imagePath) return null;
-  if (imagePath.startsWith('http')) return imagePath; // Already a full URL
+  if (typeof imagePath === 'object' && imagePath.url) {
+    imagePath = imagePath.url;
+  }
+  const rawPath = String(imagePath).trim();
+  if (!rawPath) return null;
+  const normalizedPath = rawPath.replace(/\\/g, '/');
+  if (normalizedPath.startsWith('http')) return normalizedPath; // Already a full URL
   // Prepend server origin to relative paths
   const protocol = req.protocol || 'http';
   const host = req.get('host');
-  return `${protocol}://${host}${imagePath}`;
+  const pathWithSlash = normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
+  return `${protocol}://${host}${pathWithSlash}`;
 };
 
 const handleDbError = (res, error) => {
@@ -106,6 +130,10 @@ router.get('/:id', async (req, res) => {
 // @access  Private/Admin
 router.post('/', adminAuth, upload.single('image'), async (req, res) => {
   try {
+    if (req.file && !cloudinaryEnabled) {
+      return res.status(503).json({ message: 'Category image upload is unavailable: Cloudinary is not configured.' });
+    }
+
     const { name, description, slug, parent, order, isActive } = req.body;
     const trimmedName = String(name || '').trim();
     if (!trimmedName) {
@@ -134,7 +162,8 @@ router.post('/', adminAuth, upload.single('image'), async (req, res) => {
     };
 
     if (req.file) {
-      categoryData.image = `/uploads/categories/${req.file.filename}`;
+      const uploadResult = await uploadBufferToCloudinary(req.file.buffer);
+      categoryData.image = uploadResult.url;
     }
 
     const category = await Category.create(categoryData);
@@ -160,6 +189,10 @@ router.post('/', adminAuth, upload.single('image'), async (req, res) => {
 // @access  Private/Admin
 router.put('/:id', adminAuth, upload.single('image'), async (req, res) => {
   try {
+    if (req.file && !cloudinaryEnabled) {
+      return res.status(503).json({ message: 'Category image upload is unavailable: Cloudinary is not configured.' });
+    }
+
     const { name, description, slug, parent, order, isActive } = req.body;
     const trimmedName = String(name || '').trim();
     if (!trimmedName) {
@@ -195,7 +228,8 @@ router.put('/:id', adminAuth, upload.single('image'), async (req, res) => {
 
     // Only update image if a new one is provided
     if (req.file) {
-      categoryData.image = `/uploads/categories/${req.file.filename}`;
+      const uploadResult = await uploadBufferToCloudinary(req.file.buffer);
+      categoryData.image = uploadResult.url;
     } else {
       // Preserve existing image
       categoryData.image = existingCategory.image;

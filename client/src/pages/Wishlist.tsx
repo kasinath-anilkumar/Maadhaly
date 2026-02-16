@@ -2,12 +2,158 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Heart, ShoppingCart, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { wishlistAPI } from '@/services/api';
 import type { Product } from '@/types';
+
+const getBackendOrigin = () => {
+  const fallback = 'http://localhost:5000/api';
+  const apiBase = (import.meta.env.VITE_API_URL || fallback).replace(/\/+$/, '');
+  return apiBase.replace(/\/api$/i, '');
+};
+
+const getProductImageUrl = (product: Product) => {
+  const firstImage = Array.isArray(product.images) ? (product.images as unknown[])[0] : null;
+
+  if (typeof firstImage === 'string') {
+    if (/^https?:\/\//i.test(firstImage)) return firstImage;
+    if (firstImage.startsWith('/')) return `${getBackendOrigin()}${firstImage}`;
+    return firstImage;
+  }
+
+  if (
+    firstImage &&
+    typeof firstImage === 'object' &&
+    'url' in firstImage &&
+    typeof (firstImage as { url?: unknown }).url === 'string'
+  ) {
+    const url = (firstImage as { url: string }).url;
+    if (/^https?:\/\//i.test(url)) return url;
+    if (url.startsWith('/')) return `${getBackendOrigin()}${url}`;
+    return url;
+  }
+
+  return 'https://via.placeholder.com/300';
+};
+
+const inrFormatter = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  maximumFractionDigits: 0,
+});
+
+const formatPrice = (amount: number) => inrFormatter.format(amount);
+
+const resolveFabric = (product: Product) => {
+  const candidateValues: unknown[] = [
+    product.fabric,
+    (product as unknown as { material?: unknown }).material,
+    (product as unknown as { fabricType?: unknown }).fabricType,
+  ];
+
+  for (const value of candidateValues) {
+    if (typeof value === 'string') {
+      const cleaned = value.trim();
+      if (
+        cleaned &&
+        cleaned.toLowerCase() !== 'undefined' &&
+        cleaned.toLowerCase() !== 'null'
+      ) {
+        return cleaned;
+      }
+    }
+
+    if (value && typeof value === 'object' && 'name' in value) {
+      const name = String((value as { name?: unknown }).name || '').trim();
+      if (name) return name;
+    }
+  }
+
+  return '';
+};
+
+type WishlistProductCardProps = {
+  product: Product;
+  onRemove: (productId: string) => void;
+  onAddToCart: (product: Product) => void;
+};
+
+const WishlistProductCard: React.FC<WishlistProductCardProps> = ({
+  product,
+  onRemove,
+  onAddToCart,
+}) => {
+  const originalPrice = Number(product.originalPrice || 0);
+  const currentPrice = Number(product.price || 0);
+  const fallbackDiscount =
+    originalPrice > currentPrice && currentPrice > 0
+      ? Math.round(((originalPrice - currentPrice) / originalPrice) * 100)
+      : 0;
+  const discount = (product.discount ?? 0) > 0 ? (product.discount ?? 0) : fallbackDiscount;
+  const fabric = resolveFabric(product);
+  const stockCount = Number(product.stock);
+  const isOutOfStock = Number.isFinite(stockCount) && stockCount <= 0;
+
+  return (
+    <Link to={`/product/${product._id}`} className="group block h-full">
+      <div className="h-full flex flex-col bg-[#f8f8ff] border border-gray-200 rounded-sm overflow-hidden transition-shadow hover:shadow-sm">
+        <div className="relative h-[170px] overflow-hidden">
+          <img
+            src={getProductImageUrl(product)}
+            alt={product.name}
+            className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+          />
+
+          {discount > 0 && (
+            <span className="absolute left-2 top-2 bg-primary-burgundy text-white px-1.5 py-0.5 rounded text-[10px] font-semibold">
+              {discount}% OFF
+            </span>
+          )}
+
+          <button
+            type="button"
+            aria-label={`Remove ${product.name} from wishlist`}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onRemove(product._id);
+            }}
+            className="absolute top-2 right-2 h-7 w-7 rounded-full bg-white/90 shadow-sm flex items-center justify-center hover:bg-red-50"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+          </button>
+        </div>
+
+        <div className="p-2.5 flex flex-1 flex-col gap-1.5">
+          <h3 className="text-sm font-semibold text-gray-900 truncate leading-tight">{product.name}</h3>
+          <p className="text-[11px] text-gray-500 truncate">{fabric}</p>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-bold text-primary-burgundy">{formatPrice(product.price)}</span>
+            {product.originalPrice && (
+              <span className="text-[10px] text-gray-400 line-through">{formatPrice(product.originalPrice)}</span>
+            )}
+          </div>
+
+          <Button
+            className="mt-auto w-full h-8 text-xs bg-primary-burgundy hover:bg-black text-white"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onAddToCart(product);
+            }}
+            disabled={isOutOfStock}
+          >
+            <ShoppingCart className="h-3.5 w-3.5 mr-1" />
+            {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
+          </Button>
+        </div>
+      </div>
+    </Link>
+  );
+};
 
 const Wishlist: React.FC = () => {
   const navigate = useNavigate();
@@ -38,7 +184,7 @@ const Wishlist: React.FC = () => {
   const handleRemove = async (productId: string) => {
     try {
       await wishlistAPI.remove(productId);
-      setWishlist(wishlist.filter((item) => item._id !== productId));
+      setWishlist((prev) => prev.filter((item) => item._id !== productId));
       toast.success('Removed from wishlist');
     } catch (error) {
       toast.error('Failed to remove from wishlist');
@@ -55,9 +201,9 @@ const Wishlist: React.FC = () => {
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="container mx-auto px-4">
           <h1 className="text-3xl font-bold mb-8">My Wishlist</h1>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[...Array(4)].map((_, i) => (
-              <Card key={i} className="h-80 animate-pulse" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-[270px] bg-[#f8f8ff] border border-gray-200 rounded-sm animate-pulse" />
             ))}
           </div>
         </div>
@@ -87,44 +233,14 @@ const Wishlist: React.FC = () => {
       <div className="container mx-auto px-4">
         <h1 className="text-3xl font-bold mb-8">My Wishlist ({wishlist.length})</h1>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {wishlist.map((product) => (
-            <Card key={product._id} className="overflow-hidden">
-              <div className="relative aspect-[3/4] overflow-hidden">
-                <img
-                  src={product.images[0] || 'https://via.placeholder.com/300'}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                />
-                <button
-                  onClick={() => handleRemove(product._id)}
-                  className="absolute top-3 right-3 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:bg-red-50"
-                >
-                  <Trash2 className="h-4 w-4 text-red-500" />
-                </button>
-              </div>
-              <CardContent className="p-4">
-                <Link to={`/product/${product._id}`}>
-                  <h3 className="font-semibold mb-1 truncate hover:text-rose-600">
-                    {product.name}
-                  </h3>
-                </Link>
-                <p className="text-sm text-gray-500 mb-2">{product.fabric}</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-bold text-rose-600">
-                    ₹{product.price.toLocaleString()}
-                  </span>
-                  <Button
-                    size="sm"
-                    onClick={() => handleAddToCart(product)}
-                    disabled={product.stock === 0}
-                  >
-                    <ShoppingCart className="h-4 w-4 mr-1" />
-                    Add
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <WishlistProductCard
+              key={product._id}
+              product={product}
+              onRemove={handleRemove}
+              onAddToCart={handleAddToCart}
+            />
           ))}
         </div>
       </div>

@@ -19,7 +19,7 @@ import payment_4 from '../assests/Payment_4.png';
 const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { addToCart } = useCart();
 
   const [product, setProduct] = useState<Product | null>(null);
@@ -28,6 +28,10 @@ const ProductDetail: React.FC = () => {
   const [quantity, setQuantity] = useState(1);
   const [isInWishlist, setIsInWishlist] = useState(false);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [reviewTitle, setReviewTitle] = useState('');
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewRating, setReviewRating] = useState(5);
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   const productImages = product?.images?.length
     ? product.images
@@ -38,6 +42,26 @@ const ProductDetail: React.FC = () => {
       fetchProduct();
     }
   }, [id]);
+
+  useEffect(() => {
+    if (!product || !user) return;
+    const currentUserId = String((user as any)._id || user.id || '');
+    const existingReview = (product.reviews || []).find((review: any) => {
+      const reviewUserId = String(review?.user?._id || review?.user?.id || review?.user || '');
+      return reviewUserId && reviewUserId === currentUserId;
+    });
+
+    if (existingReview) {
+      setReviewTitle(existingReview.title || '');
+      setReviewComment(existingReview.comment || '');
+      setReviewRating(Number(existingReview.rating || 5));
+      return;
+    }
+
+    setReviewTitle('');
+    setReviewComment('');
+    setReviewRating(5);
+  }, [product, user]);
 
   const fetchProduct = async () => {
     try {
@@ -98,6 +122,43 @@ const ProductDetail: React.FC = () => {
       }
     } catch (error) {
       toast.error('Failed to update wishlist');
+    }
+  };
+
+  const handleReviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+
+    if (!isAuthenticated) {
+      toast.error('Please login to submit a review');
+      navigate('/login', { state: { from: `/product/${id}` } });
+      return;
+    }
+
+    const trimmedComment = reviewComment.trim();
+    if (!trimmedComment) {
+      toast.error('Please enter your review comment');
+      return;
+    }
+
+    if (reviewRating < 1 || reviewRating > 5) {
+      toast.error('Rating must be between 1 and 5');
+      return;
+    }
+
+    try {
+      setSubmittingReview(true);
+      await productAPI.addReview(id, {
+        title: reviewTitle.trim(),
+        comment: trimmedComment,
+        rating: reviewRating,
+      });
+      toast.success('Review submitted successfully');
+      await fetchProduct();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to submit review');
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -405,33 +466,88 @@ const ProductDetail: React.FC = () => {
               </div>
             </TabsContent>
             <TabsContent value="reviews" className="bg-white p-6 rounded-xl">
-              {product.reviews?.length === 0 ? (
-                <p className="text-gray-500">No reviews yet. Be the first to review!</p>
-              ) : (
-                <div className="space-y-4">
-                  {product.reviews?.map((review, index) => (
-                    <div key={index} className="border-b pb-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="flex">
-                          {[...Array(5)].map((_, i) => (
-                            <Star
-                              key={i}
-                              className={`h-4 w-4 ${i < review.rating
-                                ? 'text-yellow-500 fill-yellow-500'
-                                : 'text-gray-300'
-                                }`}
-                            />
-                          ))}
-                        </div>
-                        <span className="text-sm text-gray-500">
-                          {new Date(review.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <p className="text-gray-600">{review.comment}</p>
+              <div className="space-y-8">
+                <form onSubmit={handleReviewSubmit} className="space-y-4 border rounded-xl p-4">
+                  <h3 className="font-semibold text-lg">Write a Review</h3>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Rating</label>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setReviewRating(value)}
+                          className="p-1"
+                          aria-label={`Rate ${value} star${value > 1 ? 's' : ''}`}
+                        >
+                          <Star
+                            className={`h-5 w-5 ${value <= reviewRating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}`}
+                          />
+                        </button>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Title (optional)</label>
+                    <input
+                      type="text"
+                      value={reviewTitle}
+                      onChange={(e) => setReviewTitle(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2"
+                      placeholder="Summarize your experience"
+                      maxLength={120}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Review</label>
+                    <textarea
+                      value={reviewComment}
+                      onChange={(e) => setReviewComment(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2"
+                      rows={4}
+                      placeholder="Share your thoughts about quality, fit, and delivery"
+                      required
+                    />
+                  </div>
+                  <Button type="submit" disabled={submittingReview}>
+                    {submittingReview ? 'Submitting...' : 'Submit Review'}
+                  </Button>
+                </form>
+
+                {product.reviews?.length === 0 ? (
+                  <p className="text-gray-500">No reviews yet. Be the first to review!</p>
+                ) : (
+                  <div className="space-y-4">
+                    {product.reviews?.map((review, index) => (
+                      <div key={index} className="border-b pb-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="flex">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-4 w-4 ${i < Number(review.rating)
+                                  ? 'text-yellow-500 fill-yellow-500'
+                                  : 'text-gray-300'
+                                  }`}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-sm text-gray-500">
+                            {new Date(review.createdAt).toLocaleDateString()}
+                          </span>
+                          {review.verifiedPurchase && (
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                              Verified Customer
+                            </span>
+                          )}
+                        </div>
+                        <p className="font-medium text-gray-900">{review.title || 'Review'}</p>
+                        <p className="text-gray-600 mt-1">{review.comment}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </TabsContent>
           </Tabs>
         </div>
@@ -445,20 +561,34 @@ const ProductDetail: React.FC = () => {
                 <div
                   key={product._id}
                   onClick={() => navigate(`/product/${product._id}`)}
-                  className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-shadow cursor-pointer"
+                  className="bg-[#f8f8ff] rounded-sm overflow-hidden border border-gray-200 hover:shadow-sm transition-shadow cursor-pointer"
                 >
-                  <div className="aspect-[3/4] overflow-hidden">
+                  <div className="relative aspect-[4/5] overflow-hidden">
                     <img
                       src={product.images[0] || 'https://via.placeholder.com/300'}
                       alt={product.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                     />
                   </div>
                   <div className="p-4">
-                    <h3 className="font-semibold truncate">{product.name}</h3>
-                    <p className="text-rose-600 font-bold mt-1">
-                      ₹{product.price.toLocaleString()}
-                    </p>
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
+                      {(product.discount ?? 0) > 0 && (
+                        <span className="bg-primary-burgundy text-white px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap">
+                          {product.discount ?? 0}% OFF
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-bold text-primary-burgundy">
+                        ₹{product.price.toLocaleString()}
+                      </span>
+                      {product.originalPrice && (
+                        <span className="text-sm text-gray-400 line-through">
+                          ₹{product.originalPrice.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}

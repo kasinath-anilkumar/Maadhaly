@@ -45,6 +45,8 @@ export const productAPI = {
   getByCategory: (categoryId: string) =>
     api.get('/products', { params: { category: categoryId } }),
   search: (query: string) => api.get('/products', { params: { search: query } }),
+  addReview: (id: string, data: { rating: number; comment: string; title?: string }) =>
+    api.post(`/products/${id}/review`, data),
 };
 
 // Category APIs

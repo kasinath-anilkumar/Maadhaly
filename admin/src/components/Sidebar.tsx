@@ -5,6 +5,7 @@ import {
   ShoppingBag,
   Package,
   FolderOpen,
+  MessageSquare,
   Users,
   LogOut,
 } from 'lucide-react';
@@ -19,6 +20,7 @@ const Sidebar: React.FC = () => {
     { path: '/products', icon: Package, label: 'Products' },
     { path: '/categories', icon: FolderOpen, label: 'Categories' },
     { path: '/orders', icon: ShoppingBag, label: 'Orders' },
+    { path: '/reviews', icon: MessageSquare, label: 'Reviews' },
     { path: '/users', icon: Users, label: 'Users' },
   ];
 

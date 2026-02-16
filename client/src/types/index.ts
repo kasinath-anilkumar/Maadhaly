@@ -88,7 +88,10 @@ export interface Order {
 
 export interface Review {
   user: User;
+  title?: string;
   rating: number;
   comment: string;
+  verifiedPurchase?: boolean;
   createdAt: Date;
+  updatedAt?: Date;
 }

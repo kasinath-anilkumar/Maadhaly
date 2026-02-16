@@ -48,6 +48,15 @@ export const productAPI = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   delete: (id: string) => api.delete(`/products/${id}`),
+  deleteReview: (productId: string, reviewId: string) =>
+    api.delete(`/products/${productId}/review/${reviewId}`),
+};
+
+export const reviewAPI = {
+  getAll: (params?: { page?: number; limit?: number; search?: string; verified?: string }) =>
+    api.get('/products/reviews/admin', { params }),
+  delete: (productId: string, reviewId: string) =>
+    api.delete(`/products/${productId}/review/${reviewId}`),
 };
 
 // Category APIs

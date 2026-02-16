@@ -11,6 +11,7 @@ import Products from '@/pages/Products';
 import Categories from '@/pages/Categories';
 import Orders from '@/pages/Orders';
 import Users from '@/pages/Users';
+import Reviews from '@/pages/Reviews';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -41,6 +42,7 @@ const AdminLayout: React.FC = () => {
           <Route path="/categories" element={<Categories />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/users" element={<Users />} />
+          <Route path="/reviews" element={<Reviews />} />
         </Routes>
       </main>
     </div>

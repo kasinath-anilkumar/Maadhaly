@@ -1,38 +1,28 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path');
 const Product = require('../models/Product');
+const Order = require('../models/Order');
 const { auth, adminAuth } = require('../middleware/auth');
 const cloudinary = require('cloudinary').v2;
 const streamifier = require('streamifier');
 
-// Configure cloudinary if env vars provided
-let cloudinaryEnabled = false;
-if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+const cloudinaryEnabled = Boolean(
+  process.env.CLOUDINARY_CLOUD_NAME &&
+  process.env.CLOUDINARY_API_KEY &&
+  process.env.CLOUDINARY_API_SECRET
+);
+
+if (cloudinaryEnabled) {
   cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET,
   });
-  cloudinaryEnabled = true;
-  console.log('✓ Cloudinary is configured');
+  console.log('Cloudinary is configured for product uploads');
 } else {
-  console.warn('⚠ Cloudinary not configured. Using local file storage for product images.');
+  console.warn('Cloudinary is not configured. Product image uploads are disabled until CLOUDINARY_* env vars are set.');
 }
-
-// Configure multer for image uploads. Use memory storage when uploading to Cloudinary, disk storage otherwise.
-const storage = cloudinaryEnabled
-  ? multer.memoryStorage()
-  : multer.diskStorage({
-      destination: (req, file, cb) => {
-        cb(null, 'uploads/products/');
-      },
-      filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'product-' + uniqueSuffix + path.extname(file.originalname));
-      }
-    });
 
 const fileFilter = (req, file, cb) => {
   const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -43,8 +33,8 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-const upload = multer({ 
-  storage,
+const upload = multer({
+  storage: multer.memoryStorage(),
   fileFilter,
   limits: { fileSize: 15 * 1024 * 1024 } // 15MB limit
 });
@@ -157,6 +147,15 @@ const applyPricingToResponse = (productObj) => {
   return productObj;
 };
 
+const recalculateRatings = (product) => {
+  product.ratings.count = product.reviews.length;
+  product.ratings.average =
+    product.reviews.length > 0
+      ? product.reviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) /
+        product.reviews.length
+      : 0;
+};
+
 // @route   GET /api/products
 // @desc    Get all products with filters
 // @access  Public
@@ -254,6 +253,85 @@ router.get('/featured', async (req, res) => {
   }
 });
 
+// @route   GET /api/products/reviews/admin
+// @desc    Get all product reviews (Admin)
+// @access  Private/Admin
+router.get('/reviews/admin', adminAuth, async (req, res) => {
+  try {
+    const { page = 1, limit = 20, search = '', verified = '' } = req.query;
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const limitNumber = Math.max(1, Math.min(100, Number(limit) || 20));
+    const searchQuery = String(search || '').trim();
+    const products = await Product.find(
+      { 'reviews.0': { $exists: true } },
+      { name: 1, reviews: 1 }
+    )
+      .populate('reviews.user', 'name email')
+      .lean();
+
+    let flattened = [];
+    for (const product of products) {
+      for (const review of product.reviews || []) {
+        flattened.push({
+          reviewId: review._id,
+          productId: product._id,
+          productName: product.name,
+          rating: review.rating,
+          title: review.title,
+          comment: review.comment,
+          verifiedPurchase: Boolean(review.verifiedPurchase),
+          createdAt: review.createdAt,
+          user: review.user
+            ? {
+                _id: review.user._id,
+                name: review.user.name,
+                email: review.user.email,
+              }
+            : null,
+        });
+      }
+    }
+
+    if (verified === 'true' || verified === 'false') {
+      const shouldBeVerified = verified === 'true';
+      flattened = flattened.filter((review) => Boolean(review.verifiedPurchase) === shouldBeVerified);
+    }
+
+    if (searchQuery) {
+      const needle = searchQuery.toLowerCase();
+      flattened = flattened.filter((review) => {
+        const haystacks = [
+          review.productName,
+          review.comment,
+          review.title,
+          review.user?.name,
+          review.user?.email,
+        ];
+        return haystacks.some((value) => String(value || '').toLowerCase().includes(needle));
+      });
+    }
+
+    flattened.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const total = flattened.length;
+    const skip = (pageNumber - 1) * limitNumber;
+    const reviews = flattened.slice(skip, skip + limitNumber);
+
+    res.json({
+      reviews,
+      pagination: {
+        page: pageNumber,
+        limit: limitNumber,
+        total,
+        pages: Math.ceil(total / limitNumber),
+      },
+    });
+  } catch (error) {
+    console.error('Get admin reviews error:', error);
+    return handleDbError(res, error);
+  }
+});
+
 // @route   GET /api/products/:id
 // @desc    Get single product
 // @access  Public
@@ -282,6 +360,10 @@ router.get('/:id', async (req, res) => {
 // @access  Private/Admin
 router.post('/', adminAuth, upload.array('images', MAX_PRODUCT_IMAGES), async (req, res) => {
   try {
+    if (Array.isArray(req.files) && req.files.length > 0 && !cloudinaryEnabled) {
+      return res.status(503).json({ message: 'Product image upload is unavailable: Cloudinary is not configured.' });
+    }
+
     const productData = JSON.parse(req.body.data || '{}');
     const pricing = calculatePricing(productData.price, productData.originalPrice);
     if (!pricing) {
@@ -291,20 +373,11 @@ router.post('/', adminAuth, upload.array('images', MAX_PRODUCT_IMAGES), async (r
     productData.originalPrice = pricing.originalPrice;
     productData.discount = pricing.discount;
     
-    // Add image paths (upload to Cloudinary or local storage)
+    // Add image paths (Cloudinary only)
     if (req.files && req.files.length > 0) {
-      if (cloudinaryEnabled) {
-        // Upload to Cloudinary
-        const uploadPromises = req.files.map((file) => uploadBufferToCloudinary(file.buffer));
-        const uploads = await Promise.all(uploadPromises);
-        productData.images = uploads; // array of { url, public_id }
-      } else {
-        // Store locally
-        productData.images = req.files.map((file) => ({
-          url: `/uploads/products/${file.filename}`,
-          public_id: null
-        }));
-      }
+      const uploadPromises = req.files.map((file) => uploadBufferToCloudinary(file.buffer));
+      const uploads = await Promise.all(uploadPromises);
+      productData.images = uploads; // array of { url, public_id }
     }
 
     // Generate SKU if not provided
@@ -339,6 +412,10 @@ router.post('/', adminAuth, upload.array('images', MAX_PRODUCT_IMAGES), async (r
 // @access  Private/Admin
 router.put('/:id', adminAuth, upload.array('images', MAX_PRODUCT_IMAGES), async (req, res) => {
   try {
+    if (Array.isArray(req.files) && req.files.length > 0 && !cloudinaryEnabled) {
+      return res.status(503).json({ message: 'Product image upload is unavailable: Cloudinary is not configured.' });
+    }
+
     const productData = JSON.parse(req.body.data || '{}');
     const existingProduct = await Product.findById(req.params.id);
     if (!existingProduct) {
@@ -361,34 +438,16 @@ router.put('/:id', adminAuth, upload.array('images', MAX_PRODUCT_IMAGES), async 
     
     // Add new image paths if uploaded
     if (req.files && req.files.length > 0) {
-      if (cloudinaryEnabled) {
-        // Upload to Cloudinary
-        const uploadPromises = req.files.map((file) => uploadBufferToCloudinary(file.buffer));
-        const newUploads = await Promise.all(uploadPromises);
+      const uploadPromises = req.files.map((file) => uploadBufferToCloudinary(file.buffer));
+      const newUploads = await Promise.all(uploadPromises);
 
-        // Normalize keepImages: allow array of URLs or objects
-        const keep = normalizeIncomingImages(productData.keepImages);
+      // Normalize keepImages: allow array of URLs or objects
+      const keep = normalizeIncomingImages(productData.keepImages);
 
-        if (keep.length > 0) {
-          productData.images = [...keep, ...newUploads];
-        } else {
-          productData.images = newUploads;
-        }
+      if (keep.length > 0) {
+        productData.images = [...keep, ...newUploads];
       } else {
-        // Store locally
-        const newUploads = req.files.map((file) => ({
-          url: `/uploads/products/${file.filename}`,
-          public_id: null
-        }));
-
-        // Normalize keepImages: allow array of URLs or objects
-        const keep = normalizeIncomingImages(productData.keepImages);
-
-        if (keep.length > 0) {
-          productData.images = [...keep, ...newUploads];
-        } else {
-          productData.images = newUploads;
-        }
+        productData.images = newUploads;
       }
     } else if (Array.isArray(productData.keepImages)) {
       productData.images = normalizeIncomingImages(productData.keepImages);
@@ -443,39 +502,93 @@ router.delete('/:id', adminAuth, async (req, res) => {
 // @access  Private
 router.post('/:id/review', auth, async (req, res) => {
   try {
-    const { rating, comment } = req.body;
+    const { rating, comment, title } = req.body;
+    const numericRating = Number(rating);
+    const safeComment = String(comment || '').trim();
+    const safeTitle = String(title || '').trim();
+
+    if (!Number.isFinite(numericRating) || numericRating < 1 || numericRating > 5) {
+      return res.status(400).json({ message: 'Rating must be between 1 and 5' });
+    }
+    if (!safeComment) {
+      return res.status(400).json({ message: 'Review comment is required' });
+    }
+
     const product = await Product.findById(req.params.id);
 
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    // Check if user already reviewed
-    const alreadyReviewed = product.reviews.find(
-      r => r.user.toString() === req.user.id
-    );
-
-    if (alreadyReviewed) {
-      return res.status(400).json({ message: 'You have already reviewed this product' });
-    }
-
-    product.reviews.push({
+    const hasPurchased = await Order.exists({
       user: req.user.id,
-      rating,
-      comment
+      orderStatus: { $nin: ['cancelled', 'returned'] },
+      'orderItems.product': product._id,
     });
 
-    // Update average rating
-    product.ratings.count = product.reviews.length;
-    product.ratings.average = product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.reviews.length;
+    // Update existing review if present, otherwise add new one.
+    const existingReview = product.reviews.find(
+      (r) => r.user.toString() === req.user.id
+    );
+
+    if (existingReview) {
+      existingReview.rating = numericRating;
+      existingReview.comment = safeComment;
+      existingReview.title = safeTitle;
+      existingReview.verifiedPurchase = Boolean(hasPurchased);
+      existingReview.updatedAt = new Date();
+    } else {
+      product.reviews.push({
+        user: req.user.id,
+        title: safeTitle,
+        rating: numericRating,
+        comment: safeComment,
+        verifiedPurchase: Boolean(hasPurchased),
+      });
+    }
+
+    recalculateRatings(product);
 
     await product.save();
+    await product.populate('reviews.user', 'name');
 
-    res.status(201).json({ message: 'Review added successfully' });
+    res.status(200).json({
+      message: existingReview ? 'Review updated successfully' : 'Review added successfully',
+      reviews: product.reviews,
+      ratings: product.ratings,
+    });
   } catch (error) {
     console.error('Add review error:', error);
     return handleDbError(res, error);
   }
 });
 
+// @route   DELETE /api/products/:id/review/:reviewId
+// @desc    Delete a review from product (Admin)
+// @access  Private/Admin
+router.delete('/:id/review/:reviewId', adminAuth, async (req, res) => {
+  try {
+    const { id, reviewId } = req.params;
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    const review = product.reviews.id(reviewId);
+    if (!review) {
+      return res.status(404).json({ message: 'Review not found' });
+    }
+
+    review.deleteOne();
+    recalculateRatings(product);
+    await product.save();
+
+    res.json({ message: 'Review deleted successfully', ratings: product.ratings });
+  } catch (error) {
+    console.error('Delete review error:', error);
+    return handleDbError(res, error);
+  }
+});
+
 module.exports = router;
+

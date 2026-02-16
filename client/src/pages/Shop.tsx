@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { Filter, Grid, List, Search } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Filter, Grid, Heart, List, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -12,8 +12,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { productAPI, categoryAPI } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
+import { useCart } from '@/context/CartContext';
+import { productAPI, categoryAPI, wishlistAPI } from '@/services/api';
 import type { Product, Category } from '@/types';
+import { toast } from 'sonner';
 
 const Shop: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -313,6 +316,45 @@ const ProductCard: React.FC<{ product: Product; viewMode: 'grid' | 'list' }> = (
   product,
   viewMode,
 }) => {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const { addToCart } = useCart();
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const discount = product.discount ?? 0;
+
+  const handleAddToCart = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addToCart(product, 1);
+    toast.success('Added to cart');
+  };
+
+  const handleWishlistClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!isAuthenticated) {
+      toast.error('Please login to add to wishlist');
+      navigate('/login', { state: { from: '/wishlist' } });
+      return;
+    }
+
+    try {
+      if (isWishlisted) {
+        await wishlistAPI.remove(product._id);
+        setIsWishlisted(false);
+        toast.success('Removed from wishlist');
+        return;
+      }
+
+      await wishlistAPI.add(product._id);
+      setIsWishlisted(true);
+      toast.success('Added to wishlist');
+    } catch (error) {
+      toast.error('Failed to update wishlist');
+    }
+  };
+
   if (viewMode === 'list') {
     return (
       <Link to={`/product/${product._id}`} className="group">
@@ -345,25 +387,34 @@ const ProductCard: React.FC<{ product: Product; viewMode: 'grid' | 'list' }> = (
   }
 
   return (
-    <Link to={`/product/${product._id}`} className="group">
-      <div className="bg-[#f8f8ff] rounded-sm overflow-hidden shadow-md hover:shadow-xl transition-shadow">
-        <div className="relative aspect-[3/4] overflow-hidden">
+    <div className="relative bg-[#f8f8ff] rounded-sm overflow-hidden border border-gray-200 hover:shadow-sm transition-shadow">
+      <button
+        onClick={handleWishlistClick}
+        className="absolute top-3 right-3 z-10 h-9 w-9 rounded-full bg-white/90 shadow-sm flex items-center justify-center hover:bg-white"
+        aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+      >
+        <Heart className={`h-4 w-4 ${isWishlisted ? 'fill-primary-burgundy text-primary-burgundy' : 'text-primary-burgundy'}`} />
+      </button>
+      <Link to={`/product/${product._id}`} className="group block">
+        <div className="relative aspect-[4/5] overflow-hidden">
           <img
             src={product.images[0] || 'https://via.placeholder.com/300'}
             alt={product.name}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
-          {product.discount && product.discount > 0 && (
-            <div className="absolute top-3 left-3 bg-rose-600 text-white px-3 py-1 rounded-full text-sm font-medium">
-              {product.discount}% OFF
-            </div>
-          )}
         </div>
         <div className="p-4">
-          <h3 className="font-semibold text-gray-900 mb-1 truncate">{product.name}</h3>
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
+            {discount > 0 && (
+              <span className="bg-primary-burgundy text-white px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap">
+                {discount}% OFF
+              </span>
+            )}
+          </div>
           <p className="text-sm text-gray-500 mb-2">{product.fabric}</p>
           <div className="flex items-center gap-2">
-            <span className="text-lg font-bold text-rose-600">
+            <span className="text-lg font-bold text-primary-burgundy">
               ₹{product.price.toLocaleString()}
             </span>
             {product.originalPrice && (
@@ -373,8 +424,17 @@ const ProductCard: React.FC<{ product: Product; viewMode: 'grid' | 'list' }> = (
             )}
           </div>
         </div>
+      </Link>
+      <div className="px-4 pb-4">
+        <Button
+          className="w-full bg-primary-burgundy hover:bg-black text-white"
+          onClick={handleAddToCart}
+          disabled={product.stock === 0}
+        >
+          {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+        </Button>
       </div>
-    </Link>
+    </div>
   );
 };
 

@@ -1,5 +1,5 @@
 import { categoryAPI, productAPI } from '@/services/api';
-import { Edit2, Plus, Search, Trash2 } from 'lucide-react';
+import { Edit2, MessageSquare, Plus, Search, Trash2 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -17,6 +17,21 @@ interface Product {
   color?: string;
   sku?: string;
   isFeatured?: boolean;
+  reviews?: ReviewItem[];
+}
+
+interface ReviewItem {
+  _id: string;
+  title?: string;
+  comment: string;
+  rating: number;
+  verifiedPurchase?: boolean;
+  createdAt: string;
+  user?: {
+    _id?: string;
+    name?: string;
+    email?: string;
+  };
 }
 
 const Products: React.FC = () => {
@@ -39,6 +54,8 @@ const Products: React.FC = () => {
   });
   const [images, setImages] = useState<File[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewProduct, setReviewProduct] = useState<Product | null>(null);
 
   const imagePreviews = useMemo(
     () => images.map((file) => URL.createObjectURL(file)),
@@ -151,6 +168,28 @@ const Products: React.FC = () => {
     setShowModal(true);
   };
 
+  const handleManageReviews = async (product: Product) => {
+    try {
+      const response = await productAPI.getById(product._id);
+      setReviewProduct(response.data);
+      setShowReviewModal(true);
+    } catch (error) {
+      toast.error('Failed to load product reviews');
+    }
+  };
+
+  const handleDeleteReview = async (productId: string, reviewId: string) => {
+    if (!confirm('Delete this review?')) return;
+    try {
+      await productAPI.deleteReview(productId, reviewId);
+      toast.success('Review deleted successfully');
+      const response = await productAPI.getById(productId);
+      setReviewProduct(response.data);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to delete review');
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -258,6 +297,13 @@ const Products: React.FC = () => {
                       className="p-2 text-red-600 hover:bg-red-50 rounded"
                     >
                       <Trash2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleManageReviews(product)}
+                      className="p-2 text-indigo-600 hover:bg-indigo-50 rounded"
+                      title="Manage reviews"
+                    >
+                      <MessageSquare className="h-4 w-4" />
                     </button>
                   </div>
                 </td>
@@ -460,6 +506,64 @@ const Products: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showReviewModal && reviewProduct && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b flex items-center justify-between">
+              <h2 className="text-xl font-bold">
+                Reviews: {reviewProduct.name}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowReviewModal(false);
+                  setReviewProduct(null);
+                }}
+                className="px-3 py-1 border rounded-lg hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {(reviewProduct.reviews || []).length === 0 ? (
+                <p className="text-gray-500">No reviews available for this product.</p>
+              ) : (
+                (reviewProduct.reviews || []).map((review) => (
+                  <div key={review._id} className="border rounded-lg p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {review.user?.name || 'Customer'}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {new Date(review.createdAt).toLocaleString()}
+                        </div>
+                        <div className="text-sm mt-1">
+                          Rating: <span className="font-medium">{review.rating}/5</span>
+                        </div>
+                        {review.verifiedPurchase && (
+                          <span className="inline-block mt-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                            Verified Customer
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleDeleteReview(reviewProduct._id, review._id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded"
+                        title="Delete review"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <p className="font-medium mt-3">{review.title || 'Review'}</p>
+                    <p className="text-gray-700 mt-1">{review.comment}</p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

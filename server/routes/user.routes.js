@@ -3,14 +3,44 @@ const router = express.Router();
 const User = require('../models/User');
 const { auth, adminAuth } = require('../middleware/auth');
 
+const buildImageUrl = (imagePath, req) => {
+  if (!imagePath) return null;
+  if (imagePath.startsWith('http')) return imagePath;
+  const protocol = req.protocol || 'http';
+  const host = req.get('host');
+  return `${protocol}://${host}${imagePath}`;
+};
+
+const normalizeProductImages = (images, req) => {
+  if (!Array.isArray(images)) return [];
+
+  return images
+    .map((img) => {
+      if (typeof img === 'string') return img;
+      if (img && typeof img === 'object' && typeof img.url === 'string') return img.url;
+      return null;
+    })
+    .filter((url) => typeof url === 'string' && url.length > 0)
+    .map((url) => buildImageUrl(url, req));
+};
+
 // @route   GET /api/users/wishlist
 // @desc    Get user's wishlist
 // @access  Private
 router.get('/wishlist', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
-      .populate('wishlist', 'name price images discount originalPrice');
-    res.json(user.wishlist);
+      .populate('wishlist', 'name price images discount originalPrice fabric stock');
+
+    const wishlist = (user?.wishlist || [])
+      .filter(Boolean)
+      .map((product) => {
+        const obj = product.toObject ? product.toObject() : product;
+        obj.images = normalizeProductImages(obj.images, req);
+        return obj;
+      });
+
+    res.json(wishlist);
   } catch (error) {
     console.error('Get wishlist error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });

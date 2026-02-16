@@ -196,7 +196,7 @@ router.get('/', adminAuth, async (req, res) => {
 
     const orders = await Order.find(query)
       .populate('user', 'name email phone')
-      .populate('orderItems.product', 'name images')
+      .populate('orderItems.product', 'name images sku')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit));

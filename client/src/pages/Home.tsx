@@ -1,15 +1,85 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { categoryAPI, productAPI } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
+import { useCart } from '@/context/CartContext';
+import { categoryAPI, productAPI, wishlistAPI } from '@/services/api';
 import type { Category, Product } from '@/types';
-import { ArrowRight, Headphones, Shield, ShoppingBag, Truck } from 'lucide-react';
+import { ArrowRight, Headphones, Heart, Shield, ShoppingBag, Truck } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Marquee from "react-fast-marquee";
+import { toast } from 'sonner';
 
 import banner1 from "../assests/banner1.png";
 import banner2 from "../assests/banner2.jpeg";
 import banner3 from "../assests/banner3.png";
+
+const getBackendOrigin = () => {
+  const fallback = 'http://localhost:5000/api';
+  const apiBase = (import.meta.env.VITE_API_URL || fallback).replace(/\/+$/, '');
+  return apiBase.replace(/\/api$/i, '');
+};
+
+const extractCategoryImageCandidates = (category: Category) => {
+  const origin = getBackendOrigin();
+  const rawImage = (category as unknown as { image?: unknown }).image;
+
+  let baseValue = '';
+  if (typeof rawImage === 'string') {
+    baseValue = rawImage;
+  } else if (rawImage && typeof rawImage === 'object') {
+    baseValue = String(
+      (rawImage as { url?: unknown; secure_url?: unknown }).url ||
+      (rawImage as { secure_url?: unknown }).secure_url ||
+      ''
+    );
+  }
+
+  const normalized = baseValue.trim().replace(/\\/g, '/');
+  const candidates: string[] = [];
+
+  if (normalized) {
+    if (/^https?:\/\//i.test(normalized)) {
+      candidates.push(normalized);
+      try {
+        const url = new URL(normalized);
+        const path = url.pathname;
+        if (path) {
+          candidates.push(`${origin}${path.startsWith('/') ? path : `/${path}`}`);
+          const fileName = path.split('/').pop() || '';
+          if (fileName) candidates.push(`${origin}/uploads/categories/${fileName}`);
+        }
+      } catch {
+        // ignore malformed absolute URLs and use other candidates
+      }
+    } else {
+      const withSlash = normalized.startsWith('/') ? normalized : `/${normalized}`;
+      candidates.push(`${origin}${withSlash}`);
+      if (normalized.startsWith('uploads/')) candidates.push(`${origin}/${normalized}`);
+      const fileName = normalized.split('/').pop() || '';
+      if (fileName) candidates.push(`${origin}/uploads/categories/${fileName}`);
+    }
+  }
+
+  candidates.push('https://via.placeholder.com/300');
+  return [...new Set(candidates)];
+};
+
+const CategoryImage: React.FC<{ category: Category }> = ({ category }) => {
+  const sources = extractCategoryImageCandidates(category);
+  const [index, setIndex] = useState(0);
+
+  return (
+    <img
+      src={sources[index] || 'https://via.placeholder.com/300'}
+      alt={category.name}
+      onError={() => {
+        setIndex((current) => (current < sources.length - 1 ? current + 1 : current));
+      }}
+      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+    />
+  );
+};
 
 const Home: React.FC = () => {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
@@ -218,11 +288,7 @@ const Home: React.FC = () => {
           <div className="relative overflow-hidden rounded-xl aspect-[4/5] shadow-sm hover:shadow-md transition-all duration-300">
 
             {/* Image */}
-            <img
-              src={category.image || 'https://via.placeholder.com/300'}
-              alt={category.name}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-            />
+            <CategoryImage category={category} />
 
             {/* Gradient overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
@@ -303,9 +369,56 @@ const Home: React.FC = () => {
 
 // Product Card Component
 const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const { addToCart } = useCart();
+  const [isWishlisted, setIsWishlisted] = useState(false);
+
+  const handleAddToCart = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addToCart(product, 1);
+    toast.success('Added to cart');
+  };
+
+  const handleWishlistClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!isAuthenticated) {
+      toast.error('Please login to add to wishlist');
+      navigate('/login', { state: { from: '/wishlist' } });
+      return;
+    }
+
+    try {
+      if (isWishlisted) {
+        await wishlistAPI.remove(product._id);
+        setIsWishlisted(false);
+        toast.success('Removed from wishlist');
+        return;
+      }
+
+      await wishlistAPI.add(product._id);
+      setIsWishlisted(true);
+      toast.success('Added to wishlist');
+    } catch (error) {
+      toast.error('Failed to update wishlist');
+    }
+  };
+
+  const discount = product.discount ?? 0;
+
   return (
-    <Link to={`/product/${product._id}`} className="group">
-      <div className="bg-[#f8f8ff] rounded-sm overflow-hidden border border-gray-200 hover:shadow-sm transition-shadow">
+    <div className="relative bg-[#f8f8ff] rounded-sm overflow-hidden border border-gray-200 hover:shadow-sm transition-shadow">
+      <button
+        onClick={handleWishlistClick}
+        className="absolute top-3 right-3 z-10 h-9 w-9 rounded-full bg-white/90 shadow-sm flex items-center justify-center hover:bg-white"
+        aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+      >
+        <Heart className={`h-4 w-4 ${isWishlisted ? 'fill-primary-burgundy text-primary-burgundy' : 'text-primary-burgundy'}`} />
+      </button>
+      <Link to={`/product/${product._id}`} className="group block">
         
         {/* Image */}
         <div className="relative aspect-[4/5] overflow-hidden">
@@ -314,19 +427,20 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
             alt={product.name}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
-
-          {(product.discount ?? 0) > 0 && (
-            <div className="absolute top-3 left-3 bg-primary-burgundy text-white px-3 py-1 rounded-full text-sm font-medium">
-              {product.discount ?? 0}% OFF
-            </div>
-          )}
         </div>
 
         {/* Info */}
         <div className="p-4">
-          <h3 className="font-semibold text-gray-900 mb-1 truncate">
-            {product.name}
-          </h3>
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <h3 className="font-semibold text-gray-900 truncate">
+              {product.name}
+            </h3>
+            {discount > 0 && (
+              <span className="bg-primary-burgundy text-white px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap">
+                {discount}% OFF
+              </span>
+            )}
+          </div>
 
           <p className="text-sm text-gray-500 mb-2">{product.fabric}</p>
 
@@ -342,9 +456,17 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
             )}
           </div>
         </div>
-
+      </Link>
+      <div className="px-4 pb-4">
+        <Button
+          className="w-full bg-primary-burgundy hover:bg-black text-white"
+          onClick={handleAddToCart}
+          disabled={product.stock === 0}
+        >
+          {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+        </Button>
       </div>
-    </Link>
+    </div>
   );
 };
 

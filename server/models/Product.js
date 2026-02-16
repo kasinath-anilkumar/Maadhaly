@@ -87,6 +87,11 @@ const productSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
+    title: {
+      type: String,
+      trim: true,
+      maxlength: 120
+    },
     rating: {
       type: Number,
       required: true,
@@ -94,9 +99,16 @@ const productSchema = new mongoose.Schema({
       max: 5
     },
     comment: String,
+    verifiedPurchase: {
+      type: Boolean,
+      default: false
+    },
     createdAt: {
       type: Date,
       default: Date.now
+    },
+    updatedAt: {
+      type: Date
     }
   }],
   isActive: {

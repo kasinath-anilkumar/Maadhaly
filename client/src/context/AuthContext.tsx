@@ -30,9 +30,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchProfile = async () => {
     try {
       const response = await authAPI.getProfile();
-      setUser(response.data);
+      const profileUser = response.data;
+
+      // Client app is customer-only. If an admin token exists here, clear it.
+      if (profileUser?.role === 'admin') {
+        localStorage.removeItem('token');
+        setUser(null);
+        return;
+      }
+
+      setUser(profileUser);
     } catch (error) {
       localStorage.removeItem('token');
+      setUser(null);
     } finally {
       setIsLoading(false);
     }
@@ -41,6 +51,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = async (email: string, password: string) => {
     const response = await authAPI.login(email, password);
     const { user, token } = response.data;
+
+    if (user?.role === 'admin') {
+      localStorage.removeItem('token');
+      setUser(null);
+      throw new Error('Admin account detected. Please login from the admin panel.');
+    }
+
     localStorage.setItem('token', token);
     setUser(user);
     return user;

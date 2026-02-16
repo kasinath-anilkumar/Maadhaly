@@ -18,6 +18,7 @@ import Profile from '@/pages/Profile';
 import MyOrders from '@/pages/MyOrders';
 import OrderSuccess from '@/pages/OrderSuccess';
 import Wishlist from '@/pages/Wishlist';
+import Categories from '@/pages/Categories';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -50,11 +51,11 @@ function App() {
                 <Route path="/orders" element={<MyOrders />} />
                 <Route path="/order-success/:orderId" element={<OrderSuccess />} />
                 <Route path="/wishlist" element={<Wishlist />} />
+                <Route path="/categories" element={<Categories />} />
                 
                 {/* Static pages */}
                 <Route path="/about" element={<div className="py-20 text-center">About Us - Coming Soon</div>} />
                 <Route path="/contact" element={<div className="py-20 text-center">Contact Us - Coming Soon</div>} />
-                <Route path="/categories" element={<div className="py-20 text-center">Categories - Coming Soon</div>} />
                 <Route path="/terms" element={<div className="py-20 text-center">Terms of Service - Coming Soon</div>} />
                 <Route path="/privacy" element={<div className="py-20 text-center">Privacy Policy - Coming Soon</div>} />
                 <Route path="/shipping" element={<div className="py-20 text-center">Shipping Info - Coming Soon</div>} />
