@@ -21,4 +21,8 @@ dist/
 build/
 
 # Cache
+<<<<<<< HEAD
 .cache/
+=======
+.cache/
+>>>>>>> d90a6b5ae2b9d1d6f8cd4fb6a1a86ada5c8e28ef
